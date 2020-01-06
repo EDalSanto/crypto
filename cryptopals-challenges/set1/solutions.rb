@@ -4,21 +4,28 @@
 require "pry"
 require "sorbet-runtime"
 
+ROOT_PATH = T.let("#{Dir.home}/Code/crypto/cryptopals-challenges/set1", String)
+
 module Helper
   include Kernel
   extend T::Sig
-  ROOT_PATH = T.let("#{Dir.home}/Code/crypto/cryptopals-challenges/set1", String)
   ONE_BYTE_CHAR_VALUES = T.let((0..255).to_a.map(&:chr), T::Array[String])
 
   sig {params(name: String, expected: String, actual: String).returns(NilClass)}
   def run_test(name:, expected:, actual:)
     puts "testing...#{name}"
     puts "expected: #{expected}"
-    puts "actual: #{actual}"
+    puts "actual:   #{actual}"
 
     if expected == actual
       puts "pass"
     else
+      # find diff
+      expected.chars.each.with_index do |e, i|
+        if e != actual[i]
+          puts "diff at index #{i}, expected: #{e}, actual: #{actual[i]}"
+        end
+      end
       puts "fail"
     end
 
@@ -73,6 +80,11 @@ module Helper
     [hex].pack("H*")
   end
 
+  sig {params(ascii: String).returns(String)}
+  def ascii_to_hex(ascii)
+    T.cast(ascii.unpack("H*")[0], String)
+  end
+
   sig {params(hex: String).returns(String)}
   def convert_to_base64(hex)
     ascii = hex_to_ascii(hex)
@@ -82,13 +94,25 @@ module Helper
 
   sig {params(input1: String, input2: String, base: Integer).returns(String)}
   def repeating_xor(input1:, input2:, base: 16)
-    #if input1.length > input2.length
-    #  # chunk by input2 length
+    # convert to hex
+    input1 = ascii_to_hex(input1)
+    input2 = ascii_to_hex(input2)
 
-    #elsif input2.length > input1.length
-    #else # equal
-      xor(input1: input1, input2: input2)
-    #end
+    if input1.length > input2.length
+      # repeat with input2
+      input1.chars.map.with_index do |c1, i|
+        c2 = T.cast(input2[i % input2.length], String)
+        xor(input1: c1, input2: c2)
+      end
+    elsif input2.length > input1.length
+      # repeat with input1
+      input2.chars.map.with_index do |c1, i|
+        c2 = T.cast(input1[i % input1.length], String)
+        xor(input1: c1, input2: c2)
+      end
+    else # equal 
+     [xor(input1: input1, input2: input2)]
+    end.join
   end
 
   sig {params(input1: String, input2: String, base: Integer).returns(String)}
@@ -155,16 +179,14 @@ module Solution
   # 5 implement repeating-key XOR
   sig {returns(NilClass)}
   def five
-    string = "Burning 'em, if you ain't quick and nimble I go crazy when I hear a cymbal"
-    # TODO: refactor so that key encrypts byte by byte
-    key = T.cast("ICE".unpack("H*")[0], String)
-    hex_string = T.cast(string.unpack("H*")[0], String)
-    result = xor(input1: hex_string, input2: key)
-    ascii = hex_to_ascii(result)
+    message = "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
+    key = "ICE"
+    result = repeating_xor(input1: message, input2: key)
+    expected = "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f"
     run_test(
       name: "Implement repeating-key XOR",
-      expected: "?",
-      actual: ascii
+      expected: expected,
+      actual: result
     )
   end
 end
